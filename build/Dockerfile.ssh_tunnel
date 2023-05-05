@@ -1,0 +1,33 @@
+FROM debian:stable-slim
+
+#ENV LANG ja_JP.utf8
+
+ARG Uid0=1000
+ARG Gid0=1000
+ARG Uname0=tunnel
+ARG Gname0=tunnel
+
+COPY tunnel.sh /tunnel.sh
+COPY ssh_keepalive.conf /tmp/keepalive.conf
+COPY ssh_ignore_fingerprint.conf /tmp/ignore_fingerprint.conf
+COPY entrypoint_tunnel.sh /entrypoint.sh
+
+RUN \
+  apt update && apt -y upgrade && \
+  apt -y install \
+ 	  iproute2 iputils-ping procps openssh-client sudo \
+    less \
+  && \
+  chmod 755 /tunnel.sh /entrypoint.sh && \
+  d=keepalive.conf          && mv /tmp/$d /etc/ssh/ssh_config.d/$d && \
+  d=ignore_fingerprint.conf && mv /tmp/$d /etc/ssh/ssh_config.d/$d && \
+  chmod 644 /etc/ssh/ssh_config.d/* && \
+  groupadd --gid $Gid0 $Gname0 && \
+  useradd -m --uid $Uid0 --gid $Gid0 --shell /usr/sbin/nologin --home /home/$Uname0 $Uname0 && \
+  echo done
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["/bin/bash", "-l"]
+
+
+

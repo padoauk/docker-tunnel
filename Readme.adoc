@@ -1,0 +1,96 @@
+= container port remote exposure
+
+== Abstract
+
+Container port remote exposure is functionality to expose server ports inside container on any hosts including non-container host machine. In this implementation, container ports are exposed by using ssh tunnel initiated by the dedicated container realized by compose.yml, Dockerfile and other files.
+
+Usual port exposure(publish) is the following.
+
+````
+                       | «container» service |
+                       +---------------------+
+ |service client|----->|   container host    |
+````
+
+This enables the following.
+
+````
+                                        | «container» |     | «container» |
+ |service client|---->|remote host|<----|tunnel client|---->|   service   |
+````
+
+More specifically, it is not necessary for service to run in a container.
+
+=== Example
+
+With the two containers started by the following `compose.yml`, `http://localhost:8090` of `10.1.1.1` is connected to `http://nginx:80` running as the first service. Notice that ssh tunnel is initiated in the `tunnel` container, no port exposure setting in `compose.yml` nor `-p` option of `docker run` is necessary.
+
+````
+version: "3.8"
+
+services:
+  nginx:
+    hostname:  nginx
+
+  tunnel:
+    build:
+      context: ./build
+      dockerfile: Dockerfile.ssh_tunnel
+      args:
+        - Uid0=1000
+        - Gid0=1000
+        - Uname0=tunnel
+        - Gname0=tunnel
+    image: padauk:tunnel
+    container_name: tunnel
+    hostname:  tunnel
+    tty: true
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        read_only: true
+        source: ./bind/ssh/home/tunnel/.ssh
+        target: /home/tunnel/.ssh
+    enviroment:
+      - TUNNEL="10.1.1.1, 8090, nginx, 80, 10.1.1.1, remote_user, 22, tunnel'
+````
+
+== Usage
+
+Set TUNNEL environment is suitable to set one tunnel, whose value is comma seperated words in order of the following.
+
+1. remote listen host (rh)
+2. remote listen port (rp)
+3. service host (vh)
+4. service port (vp)
+5. ssh remote host (sh)
+6. ssh remote user (su)
+7. ssh remote port (sp)
+8. tunnel process user (tu)
+
+Non-omissible parameters are rp, vp, sh and su. Here's default of omissible parameters. `rh`: null, `vh`: `localhost`, `sp`: 22 and `tu`: `root`.
+
+The ssh tunnel is, conceptually, established by the following command. 
+
+````
+sudo -u ${tu} ssh -N -R ${rh}:${rp}:%{vh}:${vp} ${su}@${sh}
+````
+
+tunnel.conf file enables opening multiple tunnels. The file path is to value of TUNNEL_CONF. Each line of tunnel.conf is same as the TUNNEL enviroment value. When the first letter of a line is `#` or space, the whole line is regarded as comment. Here's an example.
+
+````
+# r_host, r_port, s_host, s_port, ssh_host, ssh_user, ssh_port tunnel_user
+10.1.1.1, 8090,   nginx,  80,     10.1.1.1, user,     22,     ,tunnel
+,         8091,   redis,  6379,   10.1.1.1, user,     ,       ,
+,8092,mongo,27019,10.1.1.1,user,,,
+````
+
+=== ssh credential
+
+It is necessary for ssh tunnel to be established without password. One way to enable this is to prepare `.ssh` directory under home of tunnel_user with ssh key files whose public key transfered to the ssh_user of ssh_host. See the volume setting of above comose.yml example.
+
+== Author
+
+padoauk@gmail.com
+
+

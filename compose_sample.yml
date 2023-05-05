@@ -1,0 +1,21 @@
+version: "3.8"
+
+services:
+  nginx:
+    image: nginx:stable-bullseye
+    container_name: nginx
+    hostname:  nginx
+    tty: true
+    restart: unless-stopped
+
+  tunnel:
+    build:
+      context: ./build
+      dockerfile: Dockerfile.ssh_tunnel
+    image: my:tunnel
+    container_name: tunnel
+    hostname:  tunnel
+    tty: true
+    restart: unless-stopped
+
+
